@@ -252,8 +252,12 @@
   }
   .popup-breakdown-row {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 4px 0; font-size: 12px;
+    padding: 4px 6px; font-size: 12px; border-radius: 3px;
+    transition: background-color 0.12s ease;
   }
+  .popup-breakdown-row.clickable { cursor: pointer; }
+  .popup-breakdown-row.clickable:hover { background: #fef2f2; }
+  .popup-breakdown-row.clickable:hover .popup-breakdown-name span { color: #d62828; }
   .popup-breakdown-name { color: #374151; display: flex; align-items: center; gap: 6px; }
   .popup-breakdown-name .flag { font-size: 15px; line-height: 1; }
   .popup-breakdown-count { color: #6b7280; font-weight: 600; }
@@ -798,6 +802,23 @@ function renderMarkers() {
           if (personEl) personEl.classList.toggle('expanded');
         });
       });
+      // Country row click in region popup → zoom to that country
+      popup.querySelectorAll('.popup-breakdown-row[data-jump-country]').forEach(row => {
+        row.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          const countryName = row.dataset.jumpCountry;
+          jumpToCountry(countryName);
+        });
+      });
+      // City row click in country popup → zoom to that city
+      popup.querySelectorAll('.popup-breakdown-row[data-jump-city]').forEach(row => {
+        row.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          const cityName = row.dataset.jumpCity;
+          const countryName = e.target.aggData ? e.target.aggData.name : null;
+          jumpToCity(countryName, cityName);
+        });
+      });
     });
     marker.on('click', () => {
       // Frame on click — region stays in region tier, country stays in country tier
@@ -826,6 +847,29 @@ function zoomToBounds(people, targetZoom) {
   if (bounds.isValid()) {
     map.flyToBounds(bounds.pad(0.3), { maxZoom: targetZoom, duration: 0.7 });
   }
+}
+
+function jumpToCountry(countryName) {
+  // Treat "Guam" as a virtual country for jumping
+  const matchPeople = DATA.people.filter(p => {
+    if (countryName === 'Guam') return p.country === 'USA' && p.city === 'Guam';
+    if (countryName === 'USA') return p.country === 'USA' && p.city !== 'Guam';
+    return p.country === countryName;
+  });
+  if (!matchPeople.length) return;
+  map.closePopup();
+  zoomToBounds(matchPeople, 5);
+}
+
+function jumpToCity(countryName, cityName) {
+  const matchPeople = DATA.people.filter(p =>
+    (countryName ? p.country === countryName : true) && p.city === cityName
+  );
+  if (!matchPeople.length) return;
+  map.closePopup();
+  // Use the first match's coords
+  const lat = matchPeople[0].lat, lng = matchPeople[0].lng;
+  map.flyTo([lat, lng], 7, { duration: 0.7 });
 }
 
 function buildPopup(g, tier) {
@@ -858,7 +902,7 @@ function buildPopup(g, tier) {
     html += `<div style="font-size:11px;font-weight:600;color:#374151;margin-top:6px;">${t.breakdownCountry}</div>`;
     html += `<div class="popup-breakdown">`;
     for (const [c, cnt] of sorted) {
-      html += `<div class="popup-breakdown-row"><span class="popup-breakdown-name">${flagOf(c, 20)}<span>${c}</span></span><span class="popup-breakdown-count">${cnt}</span></div>`;
+      html += `<div class="popup-breakdown-row clickable" data-jump-country="${escapeHTML(c)}"><span class="popup-breakdown-name">${flagOf(c, 20)}<span>${c}</span></span><span class="popup-breakdown-count">${cnt}</span></div>`;
     }
     html += `</div>`;
     return html;
@@ -875,7 +919,7 @@ function buildPopup(g, tier) {
     html += `<div style="font-size:11px;font-weight:600;color:#374151;margin-top:6px;">${t.breakdownCity}</div>`;
     html += `<div class="popup-breakdown">`;
     for (const [c, cnt] of sorted) {
-      html += `<div class="popup-breakdown-row"><span class="popup-breakdown-name">${c}</span><span class="popup-breakdown-count">${cnt}</span></div>`;
+      html += `<div class="popup-breakdown-row clickable" data-jump-city="${escapeHTML(c)}"><span class="popup-breakdown-name">${c}</span><span class="popup-breakdown-count">${cnt}</span></div>`;
     }
     html += `</div>`;
     return html;
