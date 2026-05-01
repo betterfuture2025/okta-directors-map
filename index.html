@@ -800,11 +800,11 @@ function renderMarkers() {
       });
     });
     marker.on('click', () => {
-      // Drill down on click for region/country
+      // Frame on click — region stays in region tier, country stays in country tier
       if (tier === 'region') {
-        zoomToBounds(g.people, 4);
+        zoomToBounds(g.people, 3);
       } else if (tier === 'country') {
-        zoomToBounds(g.people, 6);
+        zoomToBounds(g.people, 5);
       }
     });
     marker.aggKey = g.key;
