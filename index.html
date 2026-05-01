@@ -265,10 +265,34 @@
   /* Legend */
   .legend {
     position: absolute; bottom: 18px; left: 18px; z-index: 500;
-    background: white; padding: 10px 12px; border-radius: 8px;
+    background: white; border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0,0,0,.15); font-size: 11px;
     max-width: 220px;
+    transition: max-width 0.2s ease;
   }
+  .legend-body {
+    padding: 10px 12px;
+    max-height: 600px; overflow: hidden;
+    transition: max-height 0.25s ease, padding 0.25s ease, opacity 0.15s ease;
+    opacity: 1;
+  }
+  .legend.collapsed { max-width: 44px; }
+  .legend.collapsed .legend-body { max-height: 0; padding: 0 12px; opacity: 0; }
+  .legend-toggle {
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; user-select: none;
+    padding: 8px; gap: 5px;
+    border-bottom: 1px solid #f3f4f6;
+    font-size: 11px; font-weight: 700; color: #d62828;
+  }
+  .legend.collapsed .legend-toggle { border-bottom: none; }
+  .legend-toggle-icon {
+    display: inline-block; transition: transform 0.2s ease;
+    font-size: 10px;
+  }
+  .legend.collapsed .legend-toggle-icon { transform: rotate(180deg); }
+  .legend-toggle-label { white-space: nowrap; }
+  .legend.collapsed .legend-toggle-label { display: none; }
   
   .legend-title { font-weight: 700; font-size: 11px; margin-bottom: 6px; color: #1f2937; }
   .legend-row { display: flex; align-items: center; gap: 6px; margin: 3px 0; color: #4b5563; }
@@ -281,6 +305,32 @@
     box-shadow: 0 2px 8px rgba(0,0,0,.15); font-size: 11px;
     font-weight: 600; color: #d62828;
     border: 2px solid #d62828;
+  }
+  .filter-indicator {
+    position: absolute; top: 56px; right: 14px;
+    padding: 6px 12px; border-radius: 16px;
+    background: linear-gradient(135deg, #d62828, #9d1c1c);
+    color: white; font-size: 12px; font-weight: 700;
+    box-shadow: 0 2px 6px rgba(0,0,0,.18);
+    z-index: 999; display: flex; align-items: center; gap: 6px;
+    cursor: pointer; user-select: none;
+    transition: transform 0.12s ease;
+  }
+  .filter-indicator:hover { transform: translateY(-1px); }
+  .filter-indicator .fi-x {
+    display: inline-block; width: 14px; height: 14px;
+    border-radius: 50%; background: rgba(255,255,255,.25);
+    text-align: center; line-height: 14px; font-size: 11px;
+    font-weight: 600;
+  }
+  .filter-indicator.is-board { background: linear-gradient(135deg, #d62828, #9d1c1c); }
+  .filter-indicator.is-exec { background: linear-gradient(135deg, #2563eb, #1e40af); }
+  .filter-indicator.is-auditor { background: linear-gradient(135deg, #1f2937, #000000); }
+  .filter-indicator.is-leader { background: linear-gradient(135deg, #d97706, #92400e); }
+  .filter-indicator.is-all { background: linear-gradient(135deg, #6b7280, #374151); cursor: default; }
+  .filter-indicator.is-all:hover { transform: none; }
+  @media (max-width: 520px) {
+    .filter-indicator { top: 52px; right: 8px; font-size: 11px; padding: 5px 10px; }
   }
 
   @media (max-width: 768px) {
@@ -297,7 +347,9 @@
     .title-block .ver-tag { font-size: 8px; padding: 1px 4px; }
     .header-logo { height: 32px; }
     .header-divider { display: none; }
-    .legend { font-size: 10px; padding: 8px; max-width: 160px; bottom: 12px; left: 12px; }
+    .legend { font-size: 10px; max-width: 160px; bottom: 12px; left: 12px; }
+  .legend-body { padding: 8px; }
+  .legend.collapsed { max-width: 36px; }
     .credit-badge { top: 10px; left: 50px; font-size: 9px; padding: 4px 9px; }
     .zoom-indicator { font-size: 10px; padding: 5px 9px; top: 10px; right: 10px; }
     .lang-toggle button { padding: 6px 7px; font-size: 10px; min-height: 32px; }
@@ -379,6 +431,7 @@
   </aside>
   <div id="map">
     <div class="zoom-indicator" id="zoomIndicator">전체 권역</div>
+    <div class="filter-indicator" id="filterIndicator" style="display:none;"></div>
     <div class="legend" id="legend"></div>
   </div>
 </main>
@@ -1151,7 +1204,7 @@ function focusCity(key) {
   setTimeout(tryOpenPopup, 800);
   
   // Close mobile sidebar
-  if (window.innerWidth < 769) document.getElementById('sidebar').classList.remove('open');
+  if (window.innerWidth < 769) document.getElementById('sidebar')?.classList.remove('open');
 }
 
 // === Refresh === //
@@ -1165,7 +1218,16 @@ function refresh() {
 function renderLegend() {
   const t = I18N[lang];
   const tier = currentTier;
-  let html = `<div class="legend-title">${t.legendTitle} · `;
+  const legendEl = document.getElementById('legend');
+  if (!legendEl) return;
+  
+  // Toggle button
+  let html = `<div class="legend-toggle" id="legendToggle">`;
+  html += `<span class="legend-toggle-icon">▾</span>`;
+  html += `<span class="legend-toggle-label">${t.legendTitle}</span>`;
+  html += `</div>`;
+  html += `<div class="legend-body">`;
+  html += `<div class="legend-title" style="margin-bottom:6px;">`;
   html += tier === 'region' ? t.tierRegion : tier === 'country' ? t.tierCountry : t.tierCity;
   html += `</div>`;
 
@@ -1189,7 +1251,27 @@ function renderLegend() {
   html += `<div style="margin-top:5px;padding-top:5px;border-top:1px solid #f3f4f6;color:#9ca3af;font-size:10px;">`;
   html += t.sizeNote;
   html += `</div>`;
-  document.getElementById('legend').innerHTML = html;
+  html += `</div>`;  // close legend-body
+  legendEl.innerHTML = html;
+
+  // Toggle handler
+  const toggleBtn = document.getElementById('legendToggle');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      legendEl.classList.toggle('collapsed');
+      try { localStorage.setItem('legendCollapsed', legendEl.classList.contains('collapsed') ? '1' : '0'); } catch(e) {}
+    });
+  }
+  // Restore saved state (or auto-collapse on mobile by default)
+  try {
+    const saved = localStorage.getItem('legendCollapsed');
+    if (saved === '1' || (saved === null && window.innerWidth < 769)) {
+      legendEl.classList.add('collapsed');
+    }
+  } catch(e) {
+    if (window.innerWidth < 769) legendEl.classList.add('collapsed');
+  }
 
   // Bind clicks to filter by region
   document.querySelectorAll('#legend .legend-row[data-reg]').forEach(el => {
@@ -1218,7 +1300,37 @@ function applyLang() {
   document.querySelectorAll('.lang-toggle button').forEach(b => {
     b.classList.toggle('active', b.dataset.lang === lang);
   });
+  updateFilterIndicator();
   refresh();
+}
+
+function updateFilterIndicator() {
+  const ind = document.getElementById('filterIndicator');
+  if (!ind) return;
+  const chip = document.querySelector('.filter-chip[data-filter="' + (activeFilter || 'all') + '"]');
+  const filtered = filterPeople();
+  if (activeFilter === 'all' || !activeFilter) {
+    // Always show total count for "all"
+    ind.className = 'filter-indicator is-all';
+    const label = chip ? (chip.dataset[lang] || chip.dataset.ko || chip.textContent) : I18N[lang].total;
+    ind.innerHTML = '<span>' + label + ' · ' + filtered.length + I18N[lang].members + '</span>';
+    ind.style.display = 'flex';
+    ind.onclick = null;
+    return;
+  }
+  if (!chip) { ind.style.display = 'none'; return; }
+  const label = chip.dataset[lang] || chip.dataset.ko || chip.textContent;
+  ind.className = 'filter-indicator is-' + activeFilter;
+  ind.innerHTML = '<span>' + label + ' · ' + filtered.length + I18N[lang].members + '</span><span class="fi-x" title="해제">×</span>';
+  ind.style.display = 'flex';
+  ind.onclick = () => {
+    activeFilter = 'all';
+    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+    const allChip = document.querySelector('.filter-chip[data-filter="all"]');
+    if (allChip) allChip.classList.add('active');
+    updateFilterIndicator();
+    refresh();
+  };
 }
 
 // === Init === //
@@ -1245,7 +1357,7 @@ function init() {
 
   // Search
   let searchTimer;
-  document.getElementById('searchInput').addEventListener('input', e => {
+  document.getElementById('searchInput')?.addEventListener('input', e => {
     clearTimeout(searchTimer);
     searchQuery = e.target.value;
     searchTimer = setTimeout(refresh, 200);
@@ -1257,6 +1369,7 @@ function init() {
       document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
       chip.classList.add('active');
       activeFilter = chip.dataset.filter;
+      updateFilterIndicator();
       refresh();
     });
   });
@@ -1272,15 +1385,16 @@ function init() {
   });
 
   // Mobile
-  document.getElementById('menuBtn').addEventListener('click', () => {
-    document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('menuBtn')?.addEventListener('click', () => {
+    document.getElementById('sidebar')?.classList.toggle('open');
   });
-  document.getElementById('map').addEventListener('click', () => {
-    if (window.innerWidth < 769) document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('map')?.addEventListener('click', () => {
+    if (window.innerWidth < 769) document.getElementById('sidebar')?.classList.remove('open');
   });
 
+  updateFilterIndicator();
   refresh();
-  document.getElementById('loading').style.display = 'none';
+  if(document.getElementById('loading'))document.getElementById('loading').style.display = 'none';
 }
 
 function startApp() {
